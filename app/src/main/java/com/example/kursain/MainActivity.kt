@@ -1,6 +1,7 @@
 package com.example.kursain
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.*
 import androidx.appcompat.app.AppCompatActivity
@@ -12,14 +13,20 @@ import org.json.JSONObject
 
 import android.util.Log
 import android.widget.EditText
-import java.io.DataOutputStream
 import java.net.URLEncoder
 
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import java.io.ByteArrayOutputStream
+import androidx.core.app.ComponentActivity
+import androidx.core.app.ComponentActivity.ExtraData
+import androidx.core.content.ContextCompat.getSystemService
+import android.icu.lang.UCharacter.GraphemeClusterBreak.T
+import java.io.*
+import java.lang.StringBuilder
+import javax.net.ssl.HttpsURLConnection
+
 
 const val MY_PERMISSIONS_REQUEST_INTERNET: Int = 1
 class MainActivity : AppCompatActivity() {
@@ -38,6 +45,7 @@ class MainActivity : AppCompatActivity() {
                 login_plain.text.toString(),
                 pass_plain.text.toString(),/*id,*/
                 result_view
+
             )
             auth.execute(null)
         }
@@ -45,7 +53,8 @@ class MainActivity : AppCompatActivity() {
             val reg = Registration(
                 login_plain.text.toString(),
                 pass_plain.text.toString(),/*id,*/
-                result_view
+                result_view,
+                this
             )
             reg.execute(null)
         }
@@ -108,66 +117,73 @@ class MainActivity : AppCompatActivity() {
         private val result_view: TextView
     ) : AsyncTask<String, String, String>() {
         override fun doInBackground(vararg params: String?): String {
-            val url = URL("http://stupid-octopus-39.serverless.social/authenticate")
+
+            val url = URL("http://spicy-chipmunk-58.serverless.social/authenticate")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Content-Type", "application/json; utf-8")
             conn.setRequestProperty("Accept", "application/json")
             conn.doOutput = true
-            conn.doInput = true
+            //conn.doInput = true
             conn.connect()
-
             val jsonParam = JSONObject()
             jsonParam.put("username", login_plain)
             jsonParam.put("password", pass_plain)
             //jsonParam.put("id",id )
             //id+=1
+            val jsonInputString = jsonParam.toString()
+            val os = conn.outputStream
+            val input = jsonInputString.toByteArray(charset("utf-8"))
+            os.write(input, 0, input.size)
+            val br = BufferedReader( InputStreamReader(conn.inputStream, "utf-8"))
 
-
-            val os = DataOutputStream(conn.outputStream)
-            os.writeBytes(jsonParam.toString())
+            val response = StringBuilder()
+            var responseLine=br.readLine()
+            while ((responseLine) != null) {
+                response.append(responseLine.trim())
+                responseLine = br.readLine()
+            }
+            val resultJson = response.toString()
+            Log.d("MyLog",resultJson)
+            Log.i("STATUS", conn.responseCode.toString())
+            Log.i("MSG", conn.responseMessage)
 
             os.flush()
             os.close()
-            val input = conn.inputStream
-            //if (conn.responseCode.equals( HttpURLConnection.HTTP_OK)){
-            // }
-
-            val out = ByteArrayOutputStream()
-            val buffer = ByteArray(1024)
-            val bytesRead:Int = input.read(buffer)
-            while ((bytesRead) > 0) {
-                out.write(buffer, 0, bytesRead)
-            }
-            Log.i("STATUS", conn.responseCode.toString())
-            Log.i("MSG", conn.responseMessage)
-            val resultJson = String(out.toByteArray())
-            out.close()
+            br.close()
             conn.disconnect()
             secondRequest(resultJson)
             return resultJson
         }
 
         private fun secondRequest(result: String) {
-            val token = JSONObject(result).getString("jwt")
-            val url = URL("http://stupid-octopus-39.serverless.social/hello")
+
+            val token = JSONObject(result).get("jwt")
+            val url = URL("http://spicy-chipmunk-58.serverless.social/hello")
             val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.doInput=true
             conn.addRequestProperty("Authorization", "Bearer $token")
-            val out = ByteArrayOutputStream()
-            val input = conn.inputStream
+            conn.connect()
+            Log.d("mylog","connected")
+            //val out = ByteArrayOutputStream()
+            val br = BufferedReader( InputStreamReader(conn.inputStream, "utf-8"))
 
-
-            val buffer = ByteArray(1024)
-            val bytesRead = input.read(buffer)
-            while ((bytesRead) > 0) {
-                out.write(buffer, 0, bytesRead)
+            val response = StringBuilder()
+            var responseLine=br.readLine()
+            while ((responseLine) != null) {
+                response.append(responseLine.trim())
+                responseLine = br.readLine()
             }
-            val resultJson = String(out.toByteArray())
-            out.close()
+            val resultJson = response.toString()
+            //out.close()
             Handler(Looper.getMainLooper()).post {
-                result_view.text = JSONObject(resultJson).getString("data")
+                result_view.text = resultJson
             }
-            result_view.text = JSONObject(resultJson).getString("data")
+            Log.d("mylog",resultJson)
+            //result_view.text = JSONObject(resultJson).getString("data")
+            br.close()
+            conn.disconnect()
 
         }
 
@@ -177,10 +193,11 @@ class MainActivity : AppCompatActivity() {
     class Registration(
         private val login_plain: String,
         private val pass_plain: String,/*var id:Int,*/
-        private val result_view: TextView
+        private val result_view: TextView,
+        val context: Context
     ) : AsyncTask<String, String, String>() {
         override fun doInBackground(vararg params: String?): String {
-            val url = URL("http://stupid-octopus-39.serverless.social/authenticate")
+            val url = URL("http://spicy-chipmunk-58.serverless.social/registration")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.setRequestProperty("Content-Type", "application/json; utf-8")
@@ -194,15 +211,28 @@ class MainActivity : AppCompatActivity() {
             jsonParam.put("password", pass_plain)
             //jsonParam.put("id",id )
             //id+=1
+            val jsonInputString = jsonParam.toString()
+            val os = conn.outputStream
+            val input = jsonInputString.toByteArray(charset("utf-8"))
+            os.write(input, 0, input.size)
+            val br = BufferedReader( InputStreamReader(conn.inputStream, "utf-8"))
 
-
-            val os = DataOutputStream(conn.outputStream)
-            os.writeBytes(jsonParam.toString())
+            val response = StringBuilder()
+            var responseLine=br.readLine()
+            while ((responseLine) != null) {
+                response.append(responseLine.trim())
+                responseLine = br.readLine()
+            }
+            Log.d("MyLog",response.toString())
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(context,"Registration completed.", Toast.LENGTH_LONG).show()
+            }
 
             os.flush()
             os.close()
+            br.close()
 
-            conn.disconnect()
+            //conn.disconnect()
 
             return "ok"
         }
