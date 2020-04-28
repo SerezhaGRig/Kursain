@@ -44,7 +44,8 @@ class MainActivity : AppCompatActivity() {
             val auth = Authorization(
                 login_plain.text.toString(),
                 pass_plain.text.toString(),/*id,*/
-                result_view
+                result_view,
+                this
 
             )
             auth.execute(null)
@@ -52,8 +53,7 @@ class MainActivity : AppCompatActivity() {
         reg_button.setOnClickListener {
             val reg = Registration(
                 login_plain.text.toString(),
-                pass_plain.text.toString(),/*id,*/
-                result_view,
+                pass_plain.text.toString(),
                 this
             )
             reg.execute(null)
@@ -114,7 +114,8 @@ class MainActivity : AppCompatActivity() {
     class Authorization(
         private val login_plain: String,
         private val pass_plain: String,/*var id:Int,*/
-        private val result_view: TextView
+        private val result_view: TextView,
+        private val context: Context
     ) : AsyncTask<String, String, String>() {
         override fun doInBackground(vararg params: String?): String {
 
@@ -157,33 +158,38 @@ class MainActivity : AppCompatActivity() {
         }
 
         private fun secondRequest(result: String) {
+            val json = JSONObject(result)
+            if(json.has("jwt")) {
+                val token = json.get("jwt")
+                val url = URL("http://spicy-chipmunk-58.serverless.social/hello")
+                val conn = url.openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.doInput = true
+                conn.addRequestProperty("Authorization", "Bearer $token")
+                conn.connect()
+                Log.d("mylog", "connected")
+                //val out = ByteArrayOutputStream()
+                val br = BufferedReader(InputStreamReader(conn.inputStream, "utf-8"))
 
-            val token = JSONObject(result).get("jwt")
-            val url = URL("http://spicy-chipmunk-58.serverless.social/hello")
-            val conn = url.openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.doInput=true
-            conn.addRequestProperty("Authorization", "Bearer $token")
-            conn.connect()
-            Log.d("mylog","connected")
-            //val out = ByteArrayOutputStream()
-            val br = BufferedReader( InputStreamReader(conn.inputStream, "utf-8"))
-
-            val response = StringBuilder()
-            var responseLine=br.readLine()
-            while ((responseLine) != null) {
-                response.append(responseLine.trim())
-                responseLine = br.readLine()
+                val response = StringBuilder()
+                var responseLine = br.readLine()
+                while ((responseLine) != null) {
+                    response.append(responseLine.trim())
+                    responseLine = br.readLine()
+                }
+                val resultJson = response.toString()
+                //out.close()
+                Handler(Looper.getMainLooper()).post {
+                    result_view.text = resultJson
+                }
+                Log.d("mylog", resultJson)
+                //result_view.text = JSONObject(resultJson).getString("data")
+                br.close()
+                conn.disconnect()
             }
-            val resultJson = response.toString()
-            //out.close()
-            Handler(Looper.getMainLooper()).post {
-                result_view.text = resultJson
+            else{
+                Toast.makeText(context,"You hadn't account", Toast.LENGTH_LONG).show()
             }
-            Log.d("mylog",resultJson)
-            //result_view.text = JSONObject(resultJson).getString("data")
-            br.close()
-            conn.disconnect()
 
         }
 
@@ -193,8 +199,7 @@ class MainActivity : AppCompatActivity() {
     class Registration(
         private val login_plain: String,
         private val pass_plain: String,/*var id:Int,*/
-        private val result_view: TextView,
-        val context: Context
+        private val context: Context
     ) : AsyncTask<String, String, String>() {
         override fun doInBackground(vararg params: String?): String {
             val url = URL("http://spicy-chipmunk-58.serverless.social/registration")
